@@ -6,6 +6,8 @@ import ReactFlow, {
   Controls,
   BackgroundVariant,
   Node,
+  NodeChange,
+  SelectionMode,
   useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -177,11 +179,25 @@ const Canvas = () => {
   const rawNodes = useStore((state) => state.nodes);
   const activeTagFilters = useStore((state) => state.activeTagFilters);
   const nodes = React.useMemo(() => {
-    if (activeTagFilters.length === 0) return rawNodes;
-    return rawNodes.map(n => ({
-      ...n,
-      hidden: !(n.data.tags as string[] | undefined)?.some(t => activeTagFilters.includes(t)),
-    }));
+    return rawNodes.map(n => {
+      // Group nodes are stored with only style.width/style.height, no top-level
+      // width/height. ReactFlow's getNodesInside treats such nodes as
+      // "notInitialized" and always includes them in rubber-band selection,
+      // bypassing SelectionMode.Full. Providing explicit dimensions here fixes this.
+      if (n.type === 'group') {
+        const base = {
+          ...n,
+          width: (n.style?.width as number) ?? 550,
+          height: (n.style?.height as number) ?? 450,
+        };
+        return base;
+      }
+      if (activeTagFilters.length === 0) return n;
+      return {
+        ...n,
+        hidden: !(n.data.tags as string[] | undefined)?.some(t => activeTagFilters.includes(t)),
+      };
+    });
   }, [rawNodes, activeTagFilters]);
   const edges = useStore((state) => state.edges);
 
@@ -189,7 +205,28 @@ const Canvas = () => {
     setIsMounted(true);
   }, []);
 
-  const onNodesChange = useStore((state) => state.onNodesChange);
+  const storeOnNodesChange = useStore((state) => state.onNodesChange);
+
+  // Custom selection: intercept ReactFlow's selection changes so we control
+  // exactly which nodes get marked selected. Groups are excluded from
+  // rubber-band selection (a batch of select:true changes) but can still be
+  // selected individually by clicking.
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const selectOn = changes.filter((c) => c.type === 'select' && (c as any).selected === true);
+    if (selectOn.length > 1) {
+      // Batch selection (rubber-band) — deselect any group nodes that crept in
+      const currentNodes = useStore.getState().nodes;
+      const groupIds = new Set(currentNodes.filter((n) => n.type === 'group').map((n) => n.id));
+      const filtered = changes.map((c) =>
+        c.type === 'select' && (c as any).selected && groupIds.has(c.id)
+          ? { ...c, selected: false }
+          : c
+      );
+      storeOnNodesChange(filtered);
+    } else {
+      storeOnNodesChange(changes);
+    }
+  }, [storeOnNodesChange]);
   const onEdgesChange = useStore((state) => state.onEdgesChange);
   const onConnect = useStore((state) => state.onConnect);
   const addNode = useStore((state) => state.addNode);
@@ -239,15 +276,19 @@ const Canvas = () => {
   );
 
   const onNodeDragStart = useCallback(
-    (_: React.MouseEvent, draggedNode: Node) => {
+    (_: React.MouseEvent, draggedNode: Node, draggedNodes: Node[]) => {
       if (draggedNode.type === 'group') return;
-      // Remove extent:'parent' immediately so the node is free to leave the group.
+      // Remove extent:'parent' for ALL selected nodes so they are free to leave the group.
       // parentId stays so coordinate space is unchanged during this drag.
-      if ((draggedNode as any).extent === 'parent') {
+      const allDragged = draggedNodes.length > 1 ? draggedNodes : [draggedNode];
+      const idsToFree = new Set(
+        allDragged.filter((n) => (n as any).extent === 'parent').map((n) => n.id)
+      );
+      if (idsToFree.size > 0) {
         const currentNodes = useStore.getState().nodes;
         setNodes(
           currentNodes.map((n) =>
-            n.id === draggedNode.id ? { ...n, extent: undefined } : n
+            idsToFree.has(n.id) ? { ...n, extent: undefined } : n
           )
         );
       }
@@ -297,6 +338,8 @@ const Canvas = () => {
   const onNodeDragStop = useCallback(
     (_: React.MouseEvent, draggedNode: Node) => {
       if (draggedNode.type === 'group') return;
+      // Read from store — onNodesChange (fired by ReactFlow before onNodeDragStop)
+      // has already written the final positions here.
       const currentNodes = useStore.getState().nodes;
 
       // Clear all drop-target highlights
@@ -304,32 +347,46 @@ const Canvas = () => {
         n.type === 'group' ? { ...n, data: { ...n.data, __dropTarget: false } } : n
       );
 
-      // Compute absolute position (children use relative coords while dragging)
-      let absolutePos = draggedNode.position;
-      const oldParentId = getParentId(draggedNode);
-      const oldParent = oldParentId ? cleared.find((n) => n.id === oldParentId) : null;
-      if (oldParent) {
-        absolutePos = {
-          x: oldParent.position.x + draggedNode.position.x,
-          y: oldParent.position.y + draggedNode.position.y,
-        };
+      // All selected non-group nodes moved together — identify them by selected flag.
+      // Always include the primary draggedNode in case selection state is stale.
+      const draggedIds = new Set(
+        cleared
+          .filter((n) => n.type !== 'group' && ((n as any).selected || n.id === draggedNode.id))
+          .map((n) => n.id)
+      );
+
+      // Build absolute-position + target-group for every dragged node
+      const draggedMeta = new Map<string, { absolutePos: { x: number; y: number }; targetGroup: Node | null }>();
+      for (const n of cleared) {
+        if (!draggedIds.has(n.id)) continue;
+        let absolutePos = n.position;
+        const oldParentId = getParentId(n);
+        const oldParent = oldParentId ? cleared.find((p) => p.id === oldParentId) : null;
+        if (oldParent) {
+          absolutePos = {
+            x: oldParent.position.x + n.position.x,
+            y: oldParent.position.y + n.position.y,
+          };
+        }
+        const fakeNode = { ...n, position: absolutePos, parentId: undefined, parentNode: undefined };
+        const targetGroup = findOverlappingGroup(fakeNode, cleared);
+        draggedMeta.set(n.id, { absolutePos, targetGroup });
       }
 
-      const fakeNode = { ...draggedNode, position: absolutePos, parentId: undefined, parentNode: undefined };
-      const targetGroup = findOverlappingGroup(fakeNode, cleared);
-
       const updated = cleared.map((n) => {
-        if (n.id !== draggedNode.id) return n;
+        if (!draggedIds.has(n.id)) return n;
+        const meta = draggedMeta.get(n.id);
+        if (!meta) return n;
+        const { absolutePos, targetGroup } = meta;
 
         if (targetGroup) {
           // ── Drag INTO a group ──
-          const relPos = {
-            x: absolutePos.x - targetGroup.position.x,
-            y: absolutePos.y - targetGroup.position.y,
-          };
           return {
             ...n,
-            position: relPos,
+            position: {
+              x: absolutePos.x - targetGroup.position.x,
+              y: absolutePos.y - targetGroup.position.y,
+            },
             parentId: targetGroup.id,
             parentNode: targetGroup.id,
             extent: undefined,
@@ -434,7 +491,7 @@ const Canvas = () => {
         zoomOnScroll={false}
         selectionKeyCode="Shift"
         multiSelectionKeyCode="Shift"
-        selectionMode={'partial' as any}
+        selectionMode={SelectionMode.Full}
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
