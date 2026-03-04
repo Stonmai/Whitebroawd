@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useMemo, useCallback, useEffect } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
   Background,
   Controls,
   BackgroundVariant,
@@ -9,8 +10,8 @@ import ReactFlow, {
   NodeChange,
   SelectionMode,
   useReactFlow,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
 import { useStore } from '@/store/useStore';
 import BookmarkNode from './nodes/BookmarkNode';
 import NoteNode from './nodes/NoteNode';
@@ -368,7 +369,7 @@ const Canvas = () => {
             y: oldParent.position.y + n.position.y,
           };
         }
-        const fakeNode = { ...n, position: absolutePos, parentId: undefined, parentNode: undefined };
+        const fakeNode = { ...n, position: absolutePos, parentId: undefined };
         const targetGroup = findOverlappingGroup(fakeNode, cleared);
         draggedMeta.set(n.id, { absolutePos, targetGroup });
       }
@@ -388,7 +389,6 @@ const Canvas = () => {
               y: absolutePos.y - targetGroup.position.y,
             },
             parentId: targetGroup.id,
-            parentNode: targetGroup.id,
             extent: undefined,
           };
         } else {
@@ -397,7 +397,6 @@ const Canvas = () => {
             ...n,
             position: absolutePos,
             parentId: undefined,
-            parentNode: undefined,
             extent: undefined,
           };
         }
@@ -487,11 +486,13 @@ const Canvas = () => {
         snapToGrid={false}
         nodesDraggable={true}
         panOnDrag={true}
-        panOnScroll={true}
-        zoomOnScroll={false}
+        panActivationKeyCode="Space"
+        panOnScroll={false}
+        zoomOnScroll={true}
+        selectionOnDrag={true}
         selectionKeyCode="Shift"
-        multiSelectionKeyCode="Shift"
-        selectionMode={SelectionMode.Full}
+        multiSelectionKeyCode={["Meta", "Control"]}
+        selectionMode={SelectionMode.Partial}
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { StickyNote, Plus, Tag, Group, Wand2, Undo2, Redo2, Utensils, Bed, Bath, SofaIcon, X, Menu } from 'lucide-react';
-import { useReactFlow } from 'reactflow';
+import { useReactFlow } from '@xyflow/react';
 import { useStore } from '@/store/useStore';
 import { RoomType } from '@/store/useStore';
 import { v4 as uuidv4 } from 'uuid';

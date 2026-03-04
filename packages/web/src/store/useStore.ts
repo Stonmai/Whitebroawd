@@ -13,13 +13,13 @@ import {
   OnConnect,
   applyNodeChanges,
   applyEdgeChanges
-} from 'reactflow';
+} from '@xyflow/react';
 import { WhiteboardNode, GroupFrame, Tag } from '@whiteboard/shared/types';
 import { findPlacement, extractDomain } from '@/utils/clustering';
 
 // Module-level drag tracking — snapshot only if position actually changed
 let _dragging = false;
-let _preDragSnapshot: { nodes: Node[]; edges: Edge[] } | null = null;
+let _preDragSnapshot: { nodes: Node<WhiteboardNode['data']>[]; edges: Edge[] } | null = null;
 
 const BOOKMARK_COLORS = ['blue', 'green', 'amber', 'yellow', 'purple', 'pink'];
 const NOTE_COLORS = ['purple', 'teal', 'yellow', 'pink', 'blue', 'lime'];
@@ -47,7 +47,7 @@ const ACCENT_HEX: Record<string, string> = {
   lime: '#a3e635', slate: '#475569',
 };
 
-type HistoryEntry = { nodes: Node[]; edges: Edge[] };
+type HistoryEntry = { nodes: Node<WhiteboardNode['data']>[]; edges: Edge[] };
 
 interface WhiteboardState {
   nodes: Node<WhiteboardNode['data']>[];
@@ -57,7 +57,7 @@ interface WhiteboardState {
   selectedNodes: string[];
   previewNodeId: string | null;
   editingNodeId: string | null;
-  clipboard: Node[];
+  clipboard: Node<WhiteboardNode['data']>[];
   _past: HistoryEntry[];
   _future: HistoryEntry[];
   rooms: RoomData[];
@@ -113,7 +113,7 @@ export const useStore = create<WhiteboardState>()(
   selectedNodes: [],
   previewNodeId: null,
   editingNodeId: null,
-  clipboard: [],
+  clipboard: [] as Node<WhiteboardNode['data']>[],
   _past: [],
   _future: [],
   hasSeenIntro: false,
@@ -193,7 +193,6 @@ export const useStore = create<WhiteboardState>()(
         id: newId,
         selected: true,
         parentId: newParent,
-        parentNode: newParent,
         position: isChild ? n.position : { x: n.position.x + dx, y: n.position.y + dy },
       };
     });
@@ -293,7 +292,7 @@ export const useStore = create<WhiteboardState>()(
       edges: addEdge({
         ...connection,
         style: { stroke: accentHex, strokeWidth: 2.5 },
-      }, edges),
+      } as Edge, edges),
     });
   },
 
@@ -370,7 +369,6 @@ export const useStore = create<WhiteboardState>()(
           return {
             ...n,
             parentId: undefined,
-            parentNode: undefined,
             extent: undefined,
             position: {
               x: groupNode.position.x + n.position.x,
@@ -453,7 +451,7 @@ export const useStore = create<WhiteboardState>()(
 
     // Group ungrouped bookmarks by domain
     const domainMap = new Map<string, Node[]>();
-    topBookmarks.forEach((n: Node) => {
+    topBookmarks.forEach((n: Node<WhiteboardNode['data']>) => {
       const domain = extractDomain(n.data.url);
       if (domain) {
         if (!domainMap.has(domain)) domainMap.set(domain, []);
@@ -488,7 +486,6 @@ export const useStore = create<WhiteboardState>()(
         newGroupChildren.push({
           ...n,
           parentId: groupId,
-          parentNode: groupId,
           extent: undefined,
           position: {
             x: GROUP_PAD + (i % cols) * (NODE_W + NODE_GAP),

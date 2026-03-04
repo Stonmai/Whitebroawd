@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo, useState } from 'react';
-import { Handle, Position, NodeProps, NodeResizer } from 'reactflow';
+import { Handle, Position, NodeProps, NodeResizer, Node } from '@xyflow/react';
 import { Trash2, Check, X, Palette, Pencil, Tag } from 'lucide-react';
 import { WhiteboardNode } from '@whiteboard/shared/types';
 import { cn } from '@/utils/cn';
@@ -76,7 +76,7 @@ const COLORS: Record<
   },
 };
 
-const NoteNode = ({ id, data, selected }: NodeProps<WhiteboardNode['data']>) => {
+const NoteNode = ({ id, data, selected }: NodeProps<Node<WhiteboardNode['data']>>) => {
   const [isEditing, setIsEditing] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);

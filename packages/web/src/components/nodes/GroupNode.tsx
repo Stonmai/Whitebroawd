@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo, useState, useRef } from 'react';
-import { NodeProps, NodeResizer } from 'reactflow';
+import { NodeProps, NodeResizer } from '@xyflow/react';
 import { FolderX, Pencil, Check, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/utils/cn';

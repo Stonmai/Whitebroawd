@@ -1,7 +1,7 @@
 'use client';
 
 import React, { memo } from 'react';
-import { Handle, Position, NodeProps, NodeResizer } from 'reactflow';
+import { Handle, Position, NodeProps, NodeResizer, Node } from '@xyflow/react';
 import { ExternalLink, Trash2, Palette, Check, X, Pencil, Tag } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { WhiteboardNode } from '@whiteboard/shared/types';
@@ -21,7 +21,7 @@ const COLORS: Record<
   amber:  { accent: '#f59e0b', glow: '0 0 28px rgba(245,158,11,0.4)', ring: 'rgba(245,158,11,0.7)', swatch: '#f59e0b' },
 };
 
-const BookmarkNode = ({ data, selected, id }: NodeProps<WhiteboardNode['data']>) => {
+const BookmarkNode = ({ data, selected, id }: NodeProps<Node<WhiteboardNode['data']>>) => {
   const [showColorPicker, setShowColorPicker] = React.useState(false);
   const [showTagInput, setShowTagInput] = React.useState(false);
   const [tagInput, setTagInput] = React.useState('');
