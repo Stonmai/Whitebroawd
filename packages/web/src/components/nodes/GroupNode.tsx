@@ -1,17 +1,18 @@
 'use client';
 
 import React, { memo, useState, useRef } from 'react';
-import { NodeProps, NodeResizer } from '@xyflow/react';
+import { NodeProps, NodeResizer, Node } from '@xyflow/react';
 import { FolderX, Pencil, Check, X } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/utils/cn';
+import type { WhiteboardNode } from '@whiteboard/shared/types';
 
-const GroupNode = ({ id, data, selected }: NodeProps) => {
+const GroupNode = ({ id, data, selected }: NodeProps<Node<WhiteboardNode['data']>>) => {
   const removeGroup = useStore(s => s.removeGroup);
   const updateNode = useStore(s => s.updateNode);
   const editingNodeId = useStore(s => s.editingNodeId);
   const setEditingNodeId = useStore(s => s.setEditingNodeId);
-  const isDropTarget = !!data.__dropTarget;
+  const isDropTarget = !!(data as any).__dropTarget;
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState(data.title || '');
@@ -131,9 +132,9 @@ const GroupNode = ({ id, data, selected }: NodeProps) => {
             >
               {data.title || 'New Group 📦'}
             </span>
-            {data.count !== undefined && (
+            {(data as any).count !== undefined && (
               <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>
-                {data.count} items
+                {(data as any).count} items
               </span>
             )}
           </>
